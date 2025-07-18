@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue.js Todo App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        #app {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .todo-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 1.125rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .todo-input:focus {
+            border-color: #6366f1;
+        }
+        .todo-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .todo-item:last-child {
+            border-bottom: none;
+        }
+        .todo-item.completed .todo-text {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
+        .todo-item .checkbox {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 0.25rem;
+            border: 1px solid #cbd5e1;
+            cursor: pointer;
+            margin-right: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .todo-item .checkbox.checked {
+            background-color: #6366f1;
+            border-color: #6366f1;
+        }
+        .todo-item .checkbox.checked svg {
+            fill: #ffffff;
+        }
+        .todo-text {
+            flex-grow: 1;
+            font-size: 1.125rem;
+            color: #334155;
+            word-break: break-word;
+            cursor: pointer;
+        }
+        .todo-item .edit-input {
+            flex-grow: 1;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            font-size: 1.125rem;
+            outline: none;
+        }
+        .todo-item .delete-button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-left: 0.5rem;
+            transition: color 0.2s;
+        }
+        .todo-item .delete-button:hover {
+            color: #dc2626;
+        }
+        .filter-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            background-color: #ffffff;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-button.active {
+            background-color: #6366f1;
+            color: #ffffff;
+            border-color: #6366f1;
+        }
+        .filter-button:hover:not(.active) {
+            background-color: #f1f5f9;
+        }
+        .clear-completed-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            background-color: #ef4444;
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .clear-completed-button:hover {
+            background-color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">My Todo List</h1>
+
+        <!-- New Todo Input -->
+        <input
+            type="text"
+            class="todo-input mb-6"
+            placeholder="What needs to be done?"
+            v-model="newTodoText"
+            @keyup.enter="addTodo"
+        >
+
+        <!-- Todo List -->
+        <ul class="list-none p-0 m-0">
+            <li
+                v-for="todo in filteredTodos"
+                :key="todo.id"
+                class="todo-item"
+                :class="{ completed: todo.completed }"
+            >
+                <!-- Checkbox -->
+                <div
+                    class="checkbox"
+                    :class="{ checked: todo.completed }"
+                    @click="toggleTodoStatus(todo)"
+                >
+                    <svg v-if="todo.completed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16"><path d="M9.9997 15.1709L4.82996 10.0012L3.41599 11.4152L9.9997 18.0002L20.7067 7.29322L19.2927 5.87925L9.9997 15.1709Z" fill="rgba(255,255,255,1)"></path></svg>
+                </div>
+
+                <!-- Todo Text / Edit Input -->
+                <input
+                    v-if="todo === editingTodo"
+                    v-model="todo.title"
+                    @keyup.enter="doneEdit(todo)"
+                    @keyup.esc="cancelEdit(todo)"
+                    @blur="doneEdit(todo)"
+                    class="edit-input"
+                    v-focus
+                >
+                <span
+                    v-else
+                    class="todo-text"
+                    @dblclick="editTodo(todo)"
+                >
+                    {{ todo.title }}
+                </span>
+
+                <!-- Delete Button -->
+                <button
+                    class="delete-button"
+                    @click="removeTodo(todo)"
+                >
+                    &times;
+                </button>
+            </li>
+        </ul>
+
+        <!-- Footer -->
+        <div class="flex justify-between items-center mt-6 text-gray-600 text-sm">
+            <span>{{ remaining }} items left</span>
+
+            <!-- Filter Buttons -->
+            <div class="flex space-x-2">
+                <button
+                    class="filter-button"
+                    :class="{ active: filter === 'all' }"
+                    @click="filter = 'all'"
+                >
+                    All
+                </button>
+                <button
+                    class="filter-button"
+                    :class="{ active: filter === 'active' }"
+                    @click="filter = 'active'"
+                >
+                    Active
+                </button>
+                <button
+                    class="filter-button"
+                    :class="{ active: filter === 'completed' }"
+                    @click="filter = 'completed'"
+                >
+                    Completed
+                </button>
+            </div>
+
+            <!-- Clear Completed Button -->
+            <button
+                v-if="hasCompleted"
+                class="clear-completed-button"
+                @click="removeCompleted"
+            >
+                Clear completed
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Set the API base URL.
+        // It checks for a global variable `window.VUE_APP_API_URL` first.
+        // If that's not defined, it falls back to `window.location.origin`.
+        // This allows the hosting environment to inject the API URL without a build step.
+        // const API_BASE_URL = window.VUE_APP_API_URL || window.location.origin;
+        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8080/api';
+
+        console.log("API Base URL:", API_BASE_URL); 
+
+        const app = Vue.createApp({
+            data() {
+                return {
+                    todos: [],
+                    newTodoText: '',
+                    filter: 'all', // 'all', 'active', 'completed'
+                    editingTodo: null,
+                    originalTodoTitle: '', // To revert if edit is cancelled
+                };
+            },
+            computed: {
+                filteredTodos() {
+                    if (this.filter === 'active') {
+                        return this.todos.filter(todo => !todo.completed);
+                    } else if (this.filter === 'completed') {
+                        return this.todos.filter(todo => todo.completed);
+                    }
+                    return this.todos;
+                },
+                remaining() {
+                    return this.todos.filter(todo => !todo.completed).length;
+                },
+                hasCompleted() {
+                    return this.todos.some(todo => todo.completed);
+                }
+            },
+            methods: {
+                // Fetches all todos from the API
+                async fetchTodos() {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}`);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        this.todos = await response.json();
+                    } catch (error) {
+                        console.error("Error fetching todos:", error);
+                        // Optionally, display an error message to the user
+                    }
+                },
+
+                // Adds a new todo to the list
+                async addTodo() {
+                    const value = this.newTodoText.trim();
+                    if (!value) {
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`${API_BASE_URL}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ title: value, completed: false }),
+                        });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        const newTodo = await response.json();
+                        this.todos.push(newTodo);
+                        this.newTodoText = ''; // Clear input
+                    } catch (error) {
+                        console.error("Error adding todo:", error);
+                    }
+                },
+
+                // Toggles the completion status of a todo
+                 async toggleTodoStatus(todo) {
+                    // Create a copy of the todo and toggle its completed status
+                    const updatedTodo = { ...todo, completed: !todo.completed };
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/${todo.id}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            // Send the full updated todo object in the request body
+                            body: JSON.stringify(updatedTodo),
+                        });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        // Update the todo in the local array with the new status
+                        const index = this.todos.findIndex(t => t.id === todo.id);
+                        if (index !== -1) {
+                            this.todos[index].completed = updatedTodo.completed;
+                        }
+                    } catch (error) {
+                        console.error("Error toggling todo status:", error);
+                    }
+                },
+
+                // Sets the todo to be edited
+                editTodo(todo) {
+                    this.originalTodoTitle = todo.title;
+                    this.editingTodo = todo;
+                },
+
+                // Saves the edited todo
+                async doneEdit(todo) {
+                    if (!this.editingTodo) {
+                        return;
+                    }
+                    const value = todo.title.trim();
+                    if (!value) {
+                        // If title is empty, remove the todo
+                        this.removeTodo(todo);
+                    } else {
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/${todo.id}`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ title: value }),
+                            });
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            // Update the local todo title
+                            todo.title = value;
+                        } catch (error) {
+                            console.error("Error updating todo:", error);
+                            // Revert to original title if update fails
+                            todo.title = this.originalTodoTitle;
+                        }
+                    }
+                    this.editingTodo = null; // Exit editing mode
+                    this.originalTodoTitle = '';
+                },
+
+                // Cancels editing and reverts to original title
+                cancelEdit(todo) {
+                    this.editingTodo = null;
+                    todo.title = this.originalTodoTitle;
+                    this.originalTodoTitle = '';
+                },
+
+                // Removes a single todo
+                async removeTodo(todo) {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/${todo.id}`, {
+                            method: 'DELETE',
+                        });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        this.todos = this.todos.filter(t => t.id !== todo.id);
+                    } catch (error) {
+                        console.error("Error deleting todo:", error);
+                    }
+                },
+
+                // Removes all completed todos
+                async removeCompleted() {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}`, {
+                            method: 'DELETE',
+                        });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        this.todos = this.todos.filter(todo => !todo.completed);
+                    } catch (error) {
+                        console.error("Error deleting completed todos:", error);
+                    }
+                }
+            },
+            mounted() {
+                this.fetchTodos(); // Fetch todos when the app is mounted
+            },
+            // Custom directive to focus on the input field when editing
+            directives: {
+                focus: {
+                    mounted(el) {
+                        el.focus();
+                    }
+                }
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>

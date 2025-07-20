@@ -1,11 +1,9 @@
-# Dockerfile for Vue.js application with custom index.html
-
-# If you have a simple Vue.js app without build process
+# Kubernetes-optimized Dockerfile for Vue.js application
 FROM nginx:alpine
 
-# Create a non-root user
+# Create a non-root user for Kubernetes with home directory
 RUN addgroup -g 1001 -S appuser && \
-    adduser -S -D -H -u 1001 -s /sbin/nologin -G appuser appuser
+    adduser -S -D -u 1001 -s /sbin/nologin -G appuser -h /home/appuser appuser
 
 # Copy your application files directly
 COPY . /usr/share/nginx/html
@@ -18,7 +16,7 @@ RUN if [ -f /usr/share/nginx/html/index.html ]; then \
         exit 1; \
     fi
 
-# Create nginx configuration for Vue.js SPA
+# Create nginx configuration for Vue.js SPA running on port 8080 (non-privileged)
 RUN echo 'server {' > /etc/nginx/conf.d/default.conf && \
     echo '    listen 8080;' >> /etc/nginx/conf.d/default.conf && \
     echo '    server_name localhost;' >> /etc/nginx/conf.d/default.conf && \
@@ -35,22 +33,53 @@ RUN echo 'server {' > /etc/nginx/conf.d/default.conf && \
     echo '    error_page 404 /index.html;' >> /etc/nginx/conf.d/default.conf && \
     echo '}' >> /etc/nginx/conf.d/default.conf
 
-# Remove default nginx page
-RUN rm -f /usr/share/nginx/html/index.html.orig
+# Remove default nginx page and Dockerfile from html directory
+RUN rm -f /usr/share/nginx/html/index.html.orig && \
+    rm -f /usr/share/nginx/html/Dockerfile
 
-# Change ownership of nginx directories to appuser
-RUN chown -R appuser:appuser /usr/share/nginx/html && \
-    chown -R appuser:appuser /var/cache/nginx && \
-    chown -R appuser:appuser /var/log/nginx && \
+# Create necessary directories and set permissions for non-root user
+RUN mkdir -p /home/appuser/client_temp && \
+    mkdir -p /home/appuser/proxy_temp && \
+    mkdir -p /home/appuser/fastcgi_temp && \
+    mkdir -p /home/appuser/uwsgi_temp && \
+    mkdir -p /home/appuser/scgi_temp && \
+    chown -R appuser:appuser /usr/share/nginx/html && \
     chown -R appuser:appuser /etc/nginx/conf.d && \
-    touch /var/run/nginx.pid && \
-    chown -R appuser:appuser /var/run/nginx.pid
+    chown appuser:appuser /etc/nginx/nginx.conf && \
+    chown -R appuser:appuser /home/appuser && \
+    chmod -R 755 /home/appuser
+
+# Create custom nginx.conf for non-root user with stdout/stderr logging
+RUN echo 'worker_processes auto;' > /tmp/nginx.conf && \
+    echo 'error_log /dev/stderr warn;' >> /tmp/nginx.conf && \
+    echo 'pid /home/appuser/nginx.pid;' >> /tmp/nginx.conf && \
+    echo 'events {' >> /tmp/nginx.conf && \
+    echo '    worker_connections 1024;' >> /tmp/nginx.conf && \
+    echo '}' >> /tmp/nginx.conf && \
+    echo 'http {' >> /tmp/nginx.conf && \
+    echo '    include /etc/nginx/mime.types;' >> /tmp/nginx.conf && \
+    echo '    default_type application/octet-stream;' >> /tmp/nginx.conf && \
+    echo '    sendfile on;' >> /tmp/nginx.conf && \
+    echo '    keepalive_timeout 65;' >> /tmp/nginx.conf && \
+    echo '    access_log /dev/stdout;' >> /tmp/nginx.conf && \
+    echo '    client_body_temp_path /home/appuser/client_temp;' >> /tmp/nginx.conf && \
+    echo '    proxy_temp_path /home/appuser/proxy_temp;' >> /tmp/nginx.conf && \
+    echo '    fastcgi_temp_path /home/appuser/fastcgi_temp;' >> /tmp/nginx.conf && \
+    echo '    uwsgi_temp_path /home/appuser/uwsgi_temp;' >> /tmp/nginx.conf && \
+    echo '    scgi_temp_path /home/appuser/scgi_temp;' >> /tmp/nginx.conf && \
+    echo '    include /etc/nginx/conf.d/*.conf;' >> /tmp/nginx.conf && \
+    echo '}' >> /tmp/nginx.conf && \
+    mv /tmp/nginx.conf /etc/nginx/nginx.conf
 
 # Switch to non-root user
 USER appuser
 
-
+# Expose port 8080 (non-privileged port)
 EXPOSE 8080
+
+# Health check for Kubernetes
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

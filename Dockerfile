@@ -52,7 +52,7 @@ RUN mkdir -p /home/appuser/client_temp && \
 # Create custom nginx.conf for non-root user with stdout/stderr logging
 RUN echo 'worker_processes auto;' > /tmp/nginx.conf && \
     echo 'error_log /dev/stderr warn;' >> /tmp/nginx.conf && \
-    echo 'pid /home/appuser/nginx.pid;' >> /tmp/nginx.conf && \
+    echo 'pid /tmp/nginx.pid;' >> /tmp/nginx.conf && \
     echo 'events {' >> /tmp/nginx.conf && \
     echo '    worker_connections 1024;' >> /tmp/nginx.conf && \
     echo '}' >> /tmp/nginx.conf && \
@@ -76,10 +76,6 @@ USER appuser
 
 # Expose port 8080 (non-privileged port)
 EXPOSE 8080
-
-# Health check for Kubernetes
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
